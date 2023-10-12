@@ -38,6 +38,7 @@ type routeGuideServer struct {
 }
 
 func (s *routeGuideServer) GetFeature(ctx context.Context, point *pb.Point) (*pb.Feature, error) {
+	log.Printf("Feature requested for location: Latitude %d, Longitude %d", point.Latitude, point.Longitude)
 	for _, feature := range s.savedFeatures {
 		if proto.Equal(feature.Location, point) {
 			return feature, nil
@@ -48,9 +49,12 @@ func (s *routeGuideServer) GetFeature(ctx context.Context, point *pb.Point) (*pb
 }
 
 func (s *routeGuideServer) ListFeatures(rect *pb.Rectangle, stream pb.RouteGuide_ListFeaturesServer) error {
+	log.Printf("ListFeatures called with Rectangle: %v", rect)
 	for _, feature := range s.savedFeatures {
 		if inRange(feature.Location, rect) {
+			log.Printf("Sending feature: %v", feature)
 			if err := stream.Send(feature); err != nil {
+				log.Printf("Error sending feature: %v", err)
 				return err
 			}
 		}
@@ -63,10 +67,14 @@ func (s *routeGuideServer) RecordRoute(stream pb.RouteGuide_RecordRouteServer) e
 	var pointCount, featureCount, distance int32
 	var lastPoint *pb.Point
 	startTime := time.Now()
+
+	log.Println("RecordRoute started")
 	for {
 		point, err := stream.Recv()
 		if err == io.EOF {
 			endTime := time.Now()
+			log.Printf("Route Summary - PointCount: %d, FeatureCount: %d, Distance: %d, ElapsedTime: %d seconds",
+				pointCount, featureCount, distance, int32(endTime.Sub(startTime).Seconds()))
 			return stream.SendAndClose(&pb.RouteSummary{
 				PointCount:   pointCount,
 				FeatureCount: featureCount,
@@ -75,8 +83,10 @@ func (s *routeGuideServer) RecordRoute(stream pb.RouteGuide_RecordRouteServer) e
 			})
 		}
 		if err != nil {
+			log.Printf("Error receiving point: %v", err)
 			return err
 		}
+		log.Printf("Received Point - Latitude: %d, Longitude: %d", point.Latitude, point.Longitude)
 		pointCount++
 		for _, feature := range s.savedFeatures {
 			if proto.Equal(feature.Location, point) {
@@ -94,14 +104,17 @@ func (s *routeGuideServer) RouteChat(stream pb.RouteGuide_RouteChatServer) error
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
+			log.Println("Client closed the stream")
 			return nil
 		}
 		if err != nil {
+			log.Printf("Error receiving note: %v", err)
 			return err
 		}
 
 		key := serialize(in.Location)
 
+		log.Printf("Received Note - Location: %s, Message: %s", key, in.Message)
 		s.mu.Lock()
 		s.routeNotes[key] = append(s.routeNotes[key], in)
 		// Note: this copy prevents blocking other clients while serving this one.
@@ -112,7 +125,9 @@ func (s *routeGuideServer) RouteChat(stream pb.RouteGuide_RouteChatServer) error
 		s.mu.Unlock()
 
 		for _, note := range rn {
+			log.Printf("Sending Note - Location: %s, Message: %s", key, note.Message)
 			if err := stream.Send(note); err != nil {
+				log.Printf("Error sending note: %v", err)
 				return err
 			}
 		}
@@ -209,6 +224,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterRouteGuideServer(grpcServer, newServer())
+	log.Printf("gRPC server is starting on port %d", *port)
 	grpcServer.Serve(lis)
 }
 
