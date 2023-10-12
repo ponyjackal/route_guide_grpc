@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/ponyjackal/route_guide_grpc/data"
 	pb "github.com/ponyjackal/route_guide_grpc/routeguide"
 )
 
@@ -191,19 +193,19 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	var opts []grpc.ServerOption
-	// if *tls {
-	// if *certFile == "" {
-	// 	*certFile = data.Path("x509/server_cert.pem")
-	// }
-	// if *keyFile == "" {
-	// 	*keyFile = data.Path("x509/server_key.pem")
-	// }
-	// creds, err := credentials.NewServerTLSFromFile(*certFile, *keyFile)
-	// if err != nil {
-	// 	log.Fatalf("Failed to generate credentials: %v", err)
-	// }
-	// opts = []grpc.ServerOption{grpc.Creds(creds)}
-	// }
+	if *tls {
+		if *certFile == "" {
+			*certFile = data.Path("x509/server_cert.pem")
+		}
+		if *keyFile == "" {
+			*keyFile = data.Path("x509/server_key.pem")
+		}
+		creds, err := credentials.NewServerTLSFromFile(*certFile, *keyFile)
+		if err != nil {
+			log.Fatalf("Failed to generate credentials: %v", err)
+		}
+		opts = []grpc.ServerOption{grpc.Creds(creds)}
+	}
 
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterRouteGuideServer(grpcServer, newServer())

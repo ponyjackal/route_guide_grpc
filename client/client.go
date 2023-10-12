@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/ponyjackal/route_guide_grpc/data"
 	pb "github.com/ponyjackal/route_guide_grpc/routeguide"
 )
 
@@ -129,18 +132,18 @@ func runRouteChat(client pb.RouteGuideClient) {
 func main() {
 	flag.Parse()
 	var opts []grpc.DialOption
-	// if *tls {
-	// 	if *caFile == "" {
-	// 		*caFile = data.Path("x509/ca_cert.pem")
-	// 	}
-	// 	creds, err := credentials.NewClientTLSFromFile(*caFile, *serverHostOverride)
-	// 	if err != nil {
-	// 		log.Fatalf("Failed to create TLS credentials: %v", err)
-	// 	}
-	// 	opts = append(opts, grpc.WithTransportCredentials(creds))
-	// } else {
-	// 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	// }
+	if *tls {
+		if *caFile == "" {
+			*caFile = data.Path("x509/ca_cert.pem")
+		}
+		creds, err := credentials.NewClientTLSFromFile(*caFile, *serverHostOverride)
+		if err != nil {
+			log.Fatalf("Failed to create TLS credentials: %v", err)
+		}
+		opts = append(opts, grpc.WithTransportCredentials(creds))
+	} else {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
 	conn, err := grpc.Dial(*serverAddr, opts...)
 	if err != nil {
 		log.Fatalf("fail to dial: %v", err)
